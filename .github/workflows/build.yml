@@ -46,4 +46,27 @@ jobs:
       - name: Allow notifications and alarms
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
-          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_
+          for P in POST_NOTIFICATIONS SCHEDULE_EXACT_ALARM USE_EXACT_ALARM RECEIVE_BOOT_COMPLETED VIBRATE; do
+            sed -i "s#</manifest>#<uses-permission android:name=\"android.permission.$P\"/></manifest>#" "$MANIFEST"
+          done
+          grep -c "uses-permission" "$MANIFEST"
+
+      - name: Build the APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "../$APP_NAME.apk"
+
+      - name: Keep a copy in the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ env.APP_NAME }}.apk
+
+      - name: Publish a download link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create latest "$APP_NAME.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$APP_NAME APK" --notes "Latest build. Open this page on your phone and tap the APK file to download it."
