@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tally</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow phone-first column, three tabs (Tasks, Reminders, Places), bottom sheets for every input. */
+:root {
+  --bg: #EDF0F5;
+  --surface: #FFFFFF;
+  --ink: #121826;
+  --muted: #566075;
+  --line: #D5DAE4;
+  --track: #DDE2EC;
+  --accent: #2540E8;
+  --accent-ink: #FFFFFF;
+  --good: #0F7A57;
+  --warn-bg: #FFF1D6;
+  --warn-ink: #6B3F00;
+  --bad: #B42318;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1220; --surface: #161D30; --ink: #EAEEF8; --muted: #9AA4BA; --line: #27304A;
+    --track: #222B44; --accent: #7C93FF; --accent-ink: #0D1220; --good: #3DD6A0;
+    --warn-bg: #3A2C10; --warn-ink: #FFD99A; --bad: #FF8A80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1220; --surface: #161D30; --ink: #EAEEF8; --muted: #9AA4BA; --line: #27304A;
+  --track: #222B44; --accent: #7C93FF; --accent-ink: #0D1220; --good: #3DD6A0;
+  --warn-bg: #3A2C10; --warn-ink: #FFD99A; --bad: #FF8A80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-block: 20px 110px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+#app { max-width: 520px; margin: 0 auto; }
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 18px; }
+.top h1 { font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; margin: 0; letter-spacing: .01em; }
+.top p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.sync { font-size: 12px; color: var(--muted); white-space: nowrap; padding-bottom: 4px; }
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 12px; }
+.section-head h2 { font-family: var(--font-display); font-size: 26px; font-weight: 600; margin: 0; letter-spacing: .02em; text-transform: uppercase; }
+.list { display: grid; gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.card h3 { margin: 0; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.nums { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 10px; }
+.left { font-family: var(--font-display); font-weight: 700; font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
+.of { color: var(--muted); font-size: 14px; }
+.bar { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; margin-bottom: 14px; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.done .bar i, .done .left { color: var(--good); background: var(--good); }
+.done .left { background: none; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.good { color: var(--good); border-color: var(--good); }
+.chip.bad { color: var(--bad); border-color: var(--bad); }
+.chip.soon { color: var(--accent); border-color: var(--accent); }
+.btn { min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.wide { width: 100%; }
+.btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.btn.danger { color: var(--bad); border-color: var(--bad); }
+.icon { width: 40px; height: 36px; border: 0; background: none; border-radius: 8px; color: var(--muted); font-size: 22px; line-height: 1; margin: -6px -8px 0 0; }
+.menu { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.empty { text-align: center; padding: 28px 8px; color: var(--muted); }
+.empty h3 { color: var(--ink); font-family: var(--font-display); font-size: 28px; font-weight: 600; margin: 0 0 6px; }
+.empty p { margin: 0 auto 16px; max-width: 34ch; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.presets .btn, .quick .btn { min-height: 40px; }
+.meta { color: var(--muted); font-size: 14px; margin: 4px 0 0; overflow-wrap: anywhere; }
+.meta a { color: var(--accent); font-weight: 600; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.note { color: var(--muted); font-size: 13px; margin: 18px 4px 0; }
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; justify-content: center;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.tabs-inner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; max-width: 520px; }
+.tab { display: grid; justify-items: center; gap: 2px; min-height: 52px; border: 0; background: none; border-radius: 10px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-selected="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.scrim { position: fixed; inset: 0; z-index: 30; background: rgba(8, 12, 24, .55); display: flex; align-items: flex-end; justify-content: center; }
+.sheet {
+  width: 100%; max-width: 520px; max-height: 92%; overflow-y: auto; background: var(--surface); color: var(--ink);
+  border-radius: 18px 18px 0 0; padding: 20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.sheet h2 { font-family: var(--font-display); font-size: 28px; font-weight: 600; margin: 0 0 14px; letter-spacing: .02em; }
+label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
+label small { color: var(--muted); font-weight: 400; }
+input, select { width: 100%; min-height: 48px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
+input.big { font-family: var(--font-display); font-size: 40px; font-weight: 700; min-height: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+.quick { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+.err { color: var(--bad); font-size: 14px; min-height: 20px; margin: 8px 0 0; }
+.sheet-actions { display: flex; gap: 10px; margin-top: 14px; }
+.sheet-actions .btn { flex: 1; }
+.result { text-align: center; }
+.result .added { margin: 0; color: var(--muted); font-weight: 600; overflow-wrap: anywhere; }
+.result .big { font-family: var(--font-display); font-weight: 700; font-size: 112px; line-height: 1; margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.result .of { margin: 0 0 14px; }
+.grid100 { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; margin: 0 auto 16px; max-width: 360px; }
+.grid100 i { aspect-ratio: 1; border-radius: 2px; background: var(--track); }
+.grid100 i.on { background: var(--accent); }
+.quote { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.15; margin: 0 0 18px; text-wrap: balance; overflow-wrap: anywhere; }
+.alerts { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 40; display: grid; gap: 8px; padding: 8px max(16px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.alert { pointer-events: auto; max-width: 520px; width: 100%; margin: 0 auto; background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-ink); border-radius: 14px; padding: 14px 16px; }
+.alert strong { display: block; font-size: 16px; overflow-wrap: anywhere; }
+.alert p { margin: 2px 0 0; font-size: 14px; }
+.alert .row-actions .btn { background: transparent; border-color: var(--warn-ink); color: var(--warn-ink); }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: rise .18s ease-out; }
+  .bar i { transition: width .35s ease; }
+  @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div>
+      <h1>Tally</h1>
+      <p id="today"></p>
+    </div>
+    <span class="sync" id="sync"></span>
+  </header>
+  <main id="view"></main>
+</div>
+<div class="alerts" id="alerts" aria-live="polite"></div>
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-inner" role="tablist">
+    <button class="tab" role="tab" data-tab="tasks" id="tab-tasks"><svg viewBox="0 0 24 24"><path d="M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10"/></svg>Tasks</button>
+    <button class="tab" role="tab" data-tab="reminders" id="tab-reminders"><svg viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/></svg>Reminders</button>
+    <button class="tab" role="tab" data-tab="places" id="tab-places"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>Places</button>
+  </div>
+</nav>
+<div id="sheet-root"></div>
+
+<script>
+// <logic>
+const POOL = [
+  "Your future shirtless self sends his thanks.",
+  "Somewhere, a mirror just got nervous.",
+  "That was a rep, not a rumor. Keep going.",
+  "The couch is crying. Let it.",
+  "Legends aren't born. They're logged.",
+  "Tired is temporary. The tally is forever.",
+  "You showed up. That already beats yesterday's excuses.",
+  "Small reps, loud results.",
+  "Do it ugly, do it sweaty, but do it.",
+  "Your muscles read the log. They approve.",
+  "{name} again? Bold. Consistent. Slightly scary.",
+  "Weak days end. Logged reps stay.",
+  "Another brick in the wall of future you.",
+  "You don't need motivation. You need the next set.",
+  "Be the person your phone's step counter doubts.",
+  "Today's effort is tomorrow's flex.",
+  "The gap between wish and result is called reps.",
+  "Nobody remembers the rest day. They remember the streak.",
+  "One more entry in the evidence file.",
+  "You're not behind. You're mid-build.",
+  "{left} left. That's one good session away.",
+  "Discipline is doing it while the excuse is still talking.",
+  "Strong is just a habit with a good publicist.",
+  "Take the win, then take the next set.",
+  "Muscle is built in the quiet minutes nobody films.",
+  "Your only rival is the version that stayed in bed.",
+  "Count it, log it, own it.",
+  "The hardest rep is the one before you start.",
+  "You can rest. You can't quit. Subtle difference.",
+  "Consistency beats intensity wearing a cape.",
+  "A hundred small efforts beat one heroic Monday.",
+  "Today's soreness is tomorrow's strength paying rent.",
+  "Slow reps still count. Gravity doesn't grade on speed.",
+  "Make the log boring and the results loud.",
+  "You are one honest set away from feeling better.",
+  "Done is a better look than perfect.",
+  "Your body keeps receipts. Good ones this time.",
+  "If it were easy, everyone's arms would look like that.",
+  "Breathe, brace, repeat.",
+  "You have survived every hard day so far.",
+  "The plan works if you work the plan.",
+  "Skipping is cheap once. Then it gets cheaper.",
+  "Be proud of the reps nobody clapped for.",
+  "Ten percent better is still better.",
+  "Not a bad day, just a short set.",
+  "Effort compounds quietly.",
+  "The tally doesn't lie, and today it's on your side.",
+  "Show up tired. Leave proud.",
+  "Nobody gets strong by thinking about it.",
+  "{left} to go. Count them down, not up.",
+  "Your excuses had a long day. Yours was better.",
+  "Plot twist: you did it again.",
+  "Progress is rude. It shows up without warning.",
+  "Even the slowest lap beats the couch.",
+  "Whoever said \"later\" never saw your log.",
+  "Hard work is just luck with a schedule.",
+  "Sore today, smug tomorrow.",
+  "Keep the promise you made to yourself at 6 a.m.",
+  "Fatigue is a rumor. The next rep is the fact.",
+  "You're building a body that argues back.",
+  "Big goals are small counts in disguise.",
+  "Every number you log is a vote for who you're becoming.",
+  "You didn't wait for the mood. Respect.",
+  "Sweat now, scroll later.",
+  "A good day is any day with an entry in the log.",
+  "Perfect form for the ego, honest form for the body.",
+  "The only bad set is the one that stayed in your head.",
+  "Rome wasn't built in a day, but they did log their bricks.",
+  "You are allowed to be proud. Briefly. Then go again.",
+  "Comfort zone: nice view, zero gains.",
+  "That number just got smaller. You made it smaller.",
+  "{name}: 1. Excuses: 0.",
+  "Be stubborn about the goal and flexible about the day.",
+  "A little every day is a lot in a month.",
+  "Strength is rented daily. You just paid.",
+  "No spotlight, no audience, still counts.",
+  "Your pace is yours. Just keep it moving.",
+  "The scoreboard only reads what you log.",
+  "Quit watching the clock. Be the clock.",
+  "The first rep is a decision. The rest is momentum.",
+  "Tomorrow's you is already grateful.",
+  "Don't count the days. Make the days count.",
+  "You're not tired. You're just early in the story.",
+  "Another set in the bank. Interest is paid in muscle.",
+  "Success is boring up close. Repeat it anyway.",
+  "Doubt does zero reps. You did some.",
+  "Keep your word to the log.",
+  "It's not magic. It's Tuesday and a set of {name}.",
+  "Gains don't DM first. They just show up.",
+  "Trust the process. Also trust the log.",
+  "If you can count it, you can finish it.",
+  "Be more consistent than your mood.",
+  "The grind has a flavor: progress.",
+  "You get stronger every time you decide to continue.",
+  "Take it one number at a time.",
+  "Plan B is doing it anyway.",
+  "Your limits just got bored of you.",
+  "Don't negotiate with the snooze button's cousin, the skip button.",
+  "A bad workout still beats the one you imagined.",
+  "Slow is smooth, smooth is steady, steady wins.",
+  "Turn \"I should\" into \"I did\".",
+  "You made it countable. That's half the battle.",
+  "Today you were the hardest person to argue with.",
+  "Calm mind, busy muscles.",
+  "Evidence beats intention. Here's the evidence.",
+  "You're not starting over. You're starting smarter.",
+  "Make it a habit before it makes you a story.",
+  "The log is the coach that never sleeps.",
+  "Everything gets easier except the part where you quit.",
+  "A strong week is just seven decent days.",
+  "Be the reason your future self says thank you.",
+  "You can't hug progress, but you can log it.",
+  "Another tick for the one who keeps ticking.",
+  "No miracle. Just math and sweat.",
+  "Stay humble, stay hungry, stay hydrated.",
+  "Today's reps are a gift with delayed shipping.",
+  "Fewer excuses, more entries.",
+  "Even a short set rewrites the day.",
+  "The version of you that finishes is already close.",
+  "Strong people also have lazy days. They just log the next one.",
+  "Grit is quiet. It looks like this entry.",
+  "You've got more in you than your thoughts say.",
+  "Another day, another number that moved.",
+  "Make \"almost done\" your favorite phrase.",
+  "A tiny win, repeated, is a big story.",
+  "Nobody is coming to do it for you. Good thing you're here.",
+  "Your streak called. It wants more.",
+  "Embarrassing for laziness. Thrilling for you.",
+  "You earned a sip of water and a smug smile.",
+  "Think of it as a loan from tomorrow, repaid in strength.",
+  "Build the body, then roast the old excuses.",
+  "That's how you turn plans into proof.",
+  "Hands on the floor, head in the game.",
+  "Each set is a short story with a happy ending.",
+  "You don't have to like it. You just have to log it.",
+  "Be so consistent it becomes boring to doubt you.",
+  "Your goal doesn't care how you feel. It cares what you do.",
+  "Sweat is the receipt for effort.",
+  "Hello again, progress. You look good.",
+  "Let the numbers do the talking.",
+  "Make the next one a little cleaner than the last.",
+  "Challenge accepted, entry accepted.",
+  "Make \"I'll do it later\" extinct.",
+  "A quiet grind makes loud changes.",
+  "You're mostly made of what you repeat.",
+  "The finish line is just a lot of entries stitched together.",
+  "Good job. Now hydrate and look unbothered.",
+  "It adds up. It always adds up.",
+  "Stack the small wins until they look like a big one.",
+  "Don't wish for it. Rep for it.",
+  "Strength is a slow-cooked thing. You're simmering.",
+  "That's another chapter for video day one hundred.",
+  "The audience at the finish will not know today. You will.",
+  "Pain is a notification. Progress is the update.",
+  "Only {left} more and the whole thing is yours.",
+  "You moved the needle. Gently, but you moved it.",
+  "The easiest time to start was earlier. The second easiest is now, and now is done.",
+  "It's called a log because it holds the weight of your effort.",
+  "Be a little less comfortable than yesterday.",
+  "Champions are made of ordinary Tuesdays.",
+  "Fuel up, log it, move on.",
+  "You keep winning the argument with yourself.",
+  "Don't stop at \"good enough\" on the days that count.",
+  "Nothing changes if nothing is counted.",
+  "A reliable you is a powerful you.",
+  "Wow. Look at you being a person who follows through.",
+  "Every serious body started as a pile of intentions.",
+  "No audience needed. The tally clapped.",
+  "Add it up, then add one more.",
+  "The reps you don't want to do are the ones that count double.",
+  "Progress doesn't ask permission, it asks for sweat.",
+  "Fire in the lungs, calm in the head.",
+  "The log goes up, the excuses go down.",
+  "Almost everyone who finished started by logging something small.",
+  "Cheers to the you who didn't skip.",
+  "Brick by brick, rep by rep, line by line.",
+  "You can feel it before you can see it. Trust that.",
+  "You did what you said. That's rare and it's yours.",
+  "Press on. The next number is smaller.",
+  "It's not about the perfect day. It's about the logged one.",
+  "Gold stars are for kids. Gains are for you.",
+  "Another honest effort, officially on the record.",
+  "Do it for the version of you with no pain and all the swagger.",
+  "Finish this chapter, the next one has better lighting.",
+  "Someone out there is lazier today. Not you.",
+  "Keep calm and keep counting.",
+  "Winners are just losers who logged one more set.",
+  "Roast the doubt, feed the habit.",
+  "The best part of the day is when the entry goes in.",
+  "You're not chasing motivation anymore. You're carrying it.",
+  "Cold start, hot finish.",
+  "It's only impossible until you've done the first half.",
+  "Done today, proud tonight.",
+  "Rest is part of the plan. Quitting isn't.",
+  "Steady wins quietly.",
+  "Level up, one number at a time."
+];
+const RECENT_WINDOW = 100;
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// Picks a line index that this project has not used in its last 100 draws.
+// Lines used recently by other projects are avoided when enough fresh ones remain.
+function pickQuote(p, others, rand) {
+  const own = new Set(p.recent || []);
+  const used = new Set();
+  others.forEach(o => (o.recent || []).forEach(i => used.add(i)));
+  const free = [];
+  for (let i = 0; i < POOL.length; i++) if (!own.has(i)) free.push(i);
+  const fresh = free.filter(i => !used.has(i));
+  const list = fresh.length ? fresh : free;
+  const i = list[Math.floor((rand || Math.random)() * list.length)];
+  p.recent = (p.recent || []).concat(i).slice(-RECENT_WINDOW);
+  return i;
+}
+function fillQuote(text, p) {
+  const left = Math.max(0, p.total - p.done);
+  return text.split("{name}").join(p.name).split("{left}").join(String(left));
+}
+function leftOf(p) { return Math.max(0, p.total - p.done); }
+function logProgress(p, n) {
+  n = Math.floor(Number(n));
+  if (!(n > 0) || n > 1000000) return null;
+  p.done += n;
+  p.log = (p.log || []).concat({ n: n, t: Date.now() }).slice(-60);
+  return n;
+}
+function undoLast(p) {
+  const e = (p.log || []).pop();
+  if (!e) return null;
+  p.done = Math.max(0, p.done - e.n);
+  return e.n;
+}
+function parseHM(s) { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ""); return m ? { hour: +m[1], minute: +m[2] } : null; }
+// Builds the list of phone notifications for the current data. Pure, so it can be tested.
+function buildNotifications(st, now) {
+  const out = []; let id = 1;
+  (st.reminders || []).forEach(r => {
+    if (r.done) return;
+    const d = new Date(r.at);
+    if (r.repeat === "daily") out.push({ id: id++, title: r.title, body: "Reminder", schedule: { on: { hour: d.getHours(), minute: d.getMinutes() }, repeats: true, allowWhileIdle: true } });
+    else if (r.at > now) out.push({ id: id++, title: r.title, body: "Reminder", schedule: { at: new Date(r.at), allowWhileIdle: true } });
+  });
+  (st.projects || []).forEach(p => {
+    const t = parseHM(p.remindAt);
+    if (t && leftOf(p) > 0) out.push({ id: id++, title: p.name, body: leftOf(p) + " left of " + p.total + ". Time to log.", schedule: { on: t, repeats: true, allowWhileIdle: true } });
+  });
+  (st.places || []).forEach(pl => {
+    if (pl.at && pl.at - 1800000 > now) out.push({ id: id++, title: pl.title, body: "In 30 minutes" + (pl.place ? " at " + pl.place : ""), schedule: { at: new Date(pl.at - 1800000), allowWhileIdle: true } });
+  });
+  return out;
+}
+// </logic>
+
+/* ---------- state and storage ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const LS_KEY = "tally.v1";
+function blank() { return { v: 1, rev: "", projects: [], reminders: [], places: [] }; }
+function loadLocal() {
+  try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); if (d && Array.isArray(d.projects)) return d; } } catch (e) {}
+  return null;
+}
+let state = loadLocal() || blank();
+state.reminders = state.reminders || [];
+state.places = state.places || [];
+let ui = { tab: "tasks", menu: null, sheet: null, confirm: null };
+let alerts = [];
+function setSync(t) { const el = $("#sync"); if (el) el.textContent = t; }
+function persistLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+function save() {
+  state.rev = uid();
+  persistLocal();
+  setSync("Saved on this phone");
+  syncNativeSoon();
+}
+function hasData() { return state.projects.length || state.reminders.length || state.places.length; }
+
+/* ---------- phone notifications (only inside the installed app) ---------- */
+const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+let LNref = null;
+function LN() {
+  if (LNref) return LNref;
+  try {
+    if (window.Capacitor && Capacitor.registerPlugin) LNref = Capacitor.registerPlugin("LocalNotifications");
+    else if (window.Capacitor && Capacitor.Plugins) LNref = Capacitor.Plugins.LocalNotifications;
+  } catch (e) {}
+  return LNref;
+}
+let syncTimer = null, exactAsked = false;
+async function ensureReady(ln) {
+  let perm = await ln.checkPermissions();
+  if (perm.display !== "granted") perm = await ln.requestPermissions();
+  if (perm.display !== "granted") { setSync("Allow notifications in phone settings"); return false; }
+  try { await ln.createChannel({ id: "tally", name: "Tally reminders", description: "Reminders and task alerts", importance: 5, visibility: 1, vibration: true }); } catch (e) {}
+  try {
+    if (typeof ln.checkExactNotificationSetting === "function" && !exactAsked) {
+      const ex = await ln.checkExactNotificationSetting();
+      if (ex && ex.exact_alarm && ex.exact_alarm !== "granted") { exactAsked = true; await ln.changeExactNotificationSetting(); }
+    }
+  } catch (e) {}
+  return true;
+}
+function syncNativeSoon() { if (!NATIVE) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNative, 600); }
+async function syncNative() {
+  const ln = LN(); if (!ln) return;
+  try {
+    if (!(await ensureReady(ln))) return;
+    const pending = await ln.getPending();
+    if (pending && pending.notifications && pending.notifications.length) await ln.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    const list = buildNotifications(state, Date.now()).map(n => Object.assign(n, { channelId: "tally" }));
+    if (list.length) await ln.schedule({ notifications: list });
+  } catch (e) { setSync("Could not set phone alerts"); }
+}
+async function testNotif() {
+  const ln = LN(); if (!ln) return;
+  try {
+    if (!(await ensureReady(ln))) return;
+    await ln.schedule({ notifications: [{ id: 9999, title: "Tally test", body: "Notifications work.", schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true }, channelId: "tally" }] });
+    setSync("Test arrives in 10 seconds");
+  } catch (e) { setSync("Test failed"); }
+}
+
+/* ---------- formatting ---------- */
+function two(n) { return String(n).padStart(2, "0"); }
+function toLocalInput(ts) { const d = new Date(ts); return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()) + "T" + two(d.getHours()) + ":" + two(d.getMinutes()); }
+function dayKey(d) { return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()); }
+function whenText(ts) {
+  const d = new Date(ts), now = new Date();
+  const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - t0) / 86400000);
+  if (diff === 0) return "Today, " + time;
+  if (diff === 1) return "Tomorrow, " + time;
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) + ", " + time;
+}
+function setToday() { $("#today").textContent = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }); }
+
+/* ---------- rendering ---------- */
+function renderAll() { renderTabs(); renderView(); renderAlerts(); }
+function renderTabs() {
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === ui.tab)));
+}
+function renderView() {
+  const v = $("#view");
+  if (ui.tab === "tasks") v.innerHTML = tasksHtml();
+  else if (ui.tab === "reminders") v.innerHTML = remindersHtml();
+  else v.innerHTML = placesHtml();
+}
+function tasksHtml() {
+  const head = '<div class="section-head"><h2>Tasks</h2><button class="btn primary" data-act="new-task">New task</button></div>';
+  if (!state.projects.length) {
+    return head + '<div class="card empty"><h3>No tasks yet</h3><p>Add a name and a count, like Pushups and 100. Then log your reps whenever you finish a set.</p>' +
+      '<div class="presets"><button class="btn" data-act="preset" data-name="Pushups" data-count="100">Pushups 100</button>' +
+      '<button class="btn" data-act="preset" data-name="Squats" data-count="100">Squats 100</button>' +
+      '<button class="btn" data-act="preset" data-name="Pages read" data-count="50">Pages read 50</button></div></div>';
+  }
+  const cards = state.projects.map(p => {
+    const left = leftOf(p), pct = p.total ? Math.min(100, Math.round(p.done / p.total * 100)) : 0;
+    const finished = left === 0;
+    const menu = ui.menu === p.id
+      ? '<div class="menu">' +
+        ((p.log && p.log.length) ? '<button class="btn small" data-act="undo" data-id="' + p.id + '">Undo last (' + p.log[p.log.length - 1].n + ')</button>' : '') +
+        '<button class="btn small danger" data-act="del-task" data-id="' + p.id + '">' + (ui.confirm === "t" + p.id ? "Tap again to delete" : "Delete") + '</button></div>'
+      : "";
+    return '<article class="card' + (finished ? " done" : "") + '"><div class="card-head"><h3>' + esc(p.name) + '</h3>' +
+      '<button class="icon" data-act="menu" data-id="' + p.id + '" aria-label="More options for ' + esc(p.name) + '">&#8943;</button></div>' +
+      '<div class="nums"><span class="left">' + left + '</span><span class="of">' + (finished ? "done, " + p.done + " of " + p.total : "left of " + p.total) + '</span></div>' +
+      '<div class="bar" role="img" aria-label="' + pct + ' percent done"><i style="width:' + pct + '%"></i></div>' +
+      '<button class="btn primary wide" data-act="log" data-id="' + p.id + '">Log ' + esc(p.name) + '</button>' + menu + '</article>';
+  }).join("");
+  return head + '<div class="list">' + cards + '</div>';
+}
+function remState(r, now) {
+  if (r.done) return ["Done", "good"];
+  if (r.at <= now) return ["Overdue", "bad"];
+  const d = r.at - now;
+  if (d < 3600000 * 3) return ["Soon", "soon"];
+  return ["", ""];
+}
+function remindersHtml() {
+  const now = Date.now();
+  const head = '<div class="section-head"><h2>Reminders</h2><button class="btn primary" data-act="new-rem">Add</button></div>';
+  const note = NATIVE
+    ? '<p class="note">Reminders arrive as phone notifications, even when the app is closed. Task reminder times and places with a time also alert you.</p><div class="row-actions"><button class="btn small" data-act="test-notif">Send a test notification</button></div>'
+    : '<p class="note">Alerts appear on this page while it is open.</p>';
+  if (!state.reminders.length) {
+    return head + '<div class="card empty"><h3>Nothing to remember</h3><p>Add a reminder with a time. It can repeat every day.</p></div>' + note;
+  }
+  const items = state.reminders.slice().sort((a, b) => (a.done - b.done) || (a.at - b.at)).map(r => {
+    const s = remState(r, now);
+    return '<article class="card"><div class="card-head"><h3>' + esc(r.title) + '</h3>' + (s[0] ? '<span class="chip ' + s[1] + '">' + s[0] + '</span>' : "") + '</div>' +
+      '<p class="meta">' + whenText(r.at) + (r.repeat === "daily" ? " &middot; every day" : "") + '</p>' +
+      '<div class="row-actions">' +
+      (r.done ? "" : '<button class="btn small" data-act="rem-done" data-id="' + r.id + '">Mark done</button>') +
+      '<button class="btn small danger" data-act="del-rem" data-id="' + r.id + '">' + (ui.confirm === "r" + r.id ? "Tap again to delete" : "Delete") + '</button></div></article>';
+  }).join("");
+  return head + '<div class="list">' + items + '</div>' + note;
+}
+function placesHtml() {
+  const head = '<div class="section-head"><h2>Places</h2><button class="btn primary" data-act="new-place">Add</button></div>';
+  if (!state.places.length) {
+    return head + '<div class="card empty"><h3>No places saved</h3><p>Keep important venues here with the date, time and a map link.</p></div>';
+  }
+  const now = Date.now();
+  const items = state.places.slice().sort((a, b) => (a.at || 9e15) - (b.at || 9e15)).map(pl => {
+    const q = encodeURIComponent(pl.place || pl.title);
+    const past = pl.at && pl.at < now;
+    return '<article class="card"><div class="card-head"><h3>' + esc(pl.title) + '</h3>' + (past ? '<span class="chip">Past</span>' : "") + '</div>' +
+      (pl.place ? '<p class="meta">' + esc(pl.place) + '</p>' : "") +
+      (pl.at ? '<p class="meta">' + whenText(pl.at) + '</p>' : "") +
+      (pl.note ? '<p class="meta">' + esc(pl.note) + '</p>' : "") +
+      '<div class="row-actions"><a class="btn small" style="display:inline-flex;align-items:center;text-decoration:none" href="https://www.google.com/maps/search/?api=1&query=' + q + '" target="_blank" rel="noopener">Open in Maps</a>' +
+      '<button class="btn small danger" data-act="del-place" data-id="' + pl.id + '">' + (ui.confirm === "p" + pl.id ? "Tap again to delete" : "Delete") + '</button></div></article>';
+  }).join("");
+  return head + '<div class="list">' + items + '</div>';
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html, focusId) {
+  const root = $("#sheet-root");
+  root.innerHTML = '<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>';
+  if (focusId) setTimeout(() => { const el = document.getElementById(focusId); if (el) el.focus(); }, 30);
+}
+function closeSheet() { $("#sheet-root").innerHTML = ""; ui.sheet = null; }
+function taskSheet(pre) {
+  pre = pre || {};
+  openSheet('<h2>New task</h2><form id="f-task" autocomplete="off">' +
+    '<label for="tn">Name</label><input id="tn" type="text" maxlength="40" placeholder="Pushups" value="' + esc(pre.name || "") + '">' +
+    '<label for="tc">Count</label><input id="tc" type="number" inputmode="numeric" min="1" placeholder="100" value="' + esc(pre.count || "") + '">' +
+    '<label for="tr">Remind me every day at <small>(optional)</small></label><input id="tr" type="time">' +
+    '<p class="err" id="terr" role="alert"></p>' +
+    '<div class="sheet-actions"><button type="button" class="btn" data-act="close">Cancel</button><button type="submit" class="btn primary">Add task</button></div></form>', pre.name ? "tc" : "tn");
+}
+function logSheet(id) {
+  const p = state.projects.find(x => x.id === id); if (!p) return;
+  ui.sheet = { type: "log", id: id };
+  openSheet('<h2>' + esc(p.name) + '</h2><form id="f-log" autocomplete="off">' +
+    '<label for="ln">How many did you just do?</label><input id="ln" class="big" type="number" inputmode="numeric" min="1" placeholder="10">' +
+    '<div class="quick">' + [5, 10, 15, 20, 25].map(n => '<button type="button" class="btn small" data-act="quick" data-n="' + n + '">' + n + '</button>').join("") + '</div>' +
+    '<p class="err" id="lerr" role="alert"></p>' +
+    '<div class="sheet-actions"><button type="button" class="btn" data-act="close">Cancel</button><button type="submit" class="btn primary">OK</button></div></form>', "ln");
+}
+function resultSheet(p, added, quote) {
+  const left = leftOf(p), on = Math.min(100, Math.round(p.done / p.total * 100));
+  let cells = ""; for (let i = 0; i < 100; i++) cells += '<i' + (i < on ? ' class="on"' : "") + "></i>";
+  openSheet('<div class="result"><p class="added">+' + added + ' ' + esc(p.name) + '</p><div class="big">' + left + '</div>' +
+    '<p class="of">' + (left === 0 ? "All " + p.total + " done" : "left of " + p.total) + '</p>' +
+    '<div class="grid100" role="img" aria-label="' + on + ' percent done">' + cells + '</div>' +
+    '<p class="quote">' + esc(quote) + '</p><button class="btn primary wide" data-act="close" id="okbtn">Done</button></div>', "okbtn");
+}
+function remSheet() {
+  const def = new Date(); def.setHours(def.getHours() + 1, 0, 0, 0);
+  openSheet('<h2>New reminder</h2><form id="f-rem" autocomplete="off">' +
+    '<label for="rt">What should I remind you about?</label><input id="rt" type="text" maxlength="80" placeholder="Take creatine">' +
+    '<label for="rw">When</label><input id="rw" type="datetime-local" value="' + toLocalInput(def.getTime()) + '">' +
+    '<label for="rp">Repeat</label><select id="rp"><option value="none">Once</option><option value="daily">Every day</option></select>' +
+    '<p class="err" id="rerr" role="alert"></p>' +
+    '<div class="sheet-actions"><button type="button" class="btn" data-act="close">Cancel</button><button type="submit" class="btn primary">Add reminder</button></div></form>', "rt");
+}
+function placeSheet() {
+  openSheet('<h2>New place</h2><form id="f-place" autocomplete="off">' +
+    '<label for="pt">Name</label><input id="pt" type="text" maxlength="60" placeholder="Badminton court">' +
+    '<label for="pa">Address or area <small>(optional)</small></label><input id="pa" type="text" maxlength="120">' +
+    '<label for="pw">Date and time <small>(optional)</small></label><input id="pw" type="datetime-local">' +
+    '<label for="pn">Note <small>(optional)</small></label><input id="pn" type="text" maxlength="120">' +
+    '<p class="err" id="perr" role="alert"></p>' +
+    '<div class="sheet-actions"><button type="button" class="btn" data-act="close">Cancel</button><button type="submit" class="btn primary">Save place</button></div></form>', "pt");
+}
+
+/* ---------- alerts and due checks ---------- */
+function beep() {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+    const c = new C(), o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.value = 0.08;
+    o.start(); o.stop(c.currentTime + 0.25);
+  } catch (e) {}
+}
+function pushAlert(a) { if (alerts.some(x => x.key === a.key)) return; alerts.push(a); renderAlerts(); beep(); }
+function renderAlerts() {
+  $("#alerts").innerHTML = alerts.map((a, i) => '<div class="alert"><strong>' + esc(a.title) + '</strong><p>' + esc(a.text) + '</p><div class="row-actions">' +
+    (a.kind === "reminder" ? '<button class="btn small" data-act="al-done" data-i="' + i + '">Done</button><button class="btn small" data-act="al-snooze" data-i="' + i + '">Snooze 10 min</button>'
+      : '<button class="btn small" data-act="al-log" data-i="' + i + '">Log now</button>') +
+    '<button class="btn small" data-act="al-close" data-i="' + i + '">Dismiss</button></div></div>').join("");
+}
+function checkDue() {
+  const now = Date.now(), d = new Date(), today = dayKey(d), hm = two(d.getHours()) + ":" + two(d.getMinutes());
+  let changed = false;
+  state.reminders.forEach(r => {
+    if (!r.done && !r.fired && r.at <= now) { r.fired = true; changed = true; pushAlert({ key: "r" + r.id + r.at, kind: "reminder", id: r.id, title: r.title, text: "Reminder, " + whenText(r.at) }); }
+  });
+  state.projects.forEach(p => {
+    if (p.remindAt && p.lastNudge !== today && hm >= p.remindAt && leftOf(p) > 0) {
+      p.lastNudge = today; changed = true;
+      pushAlert({ key: "t" + p.id + today, kind: "task", id: p.id, title: p.name, text: leftOf(p) + " left of " + p.total + ". Log what you have done." });
+    }
+  });
+  if (changed) { save(); renderView(); }
+  else if (ui.tab === "reminders") renderView();
+}
+function completeReminder(id) {
+  const r = state.reminders.find(x => x.id === id); if (!r) return;
+  if (r.repeat === "daily") { let t = r.at; while (t <= Date.now()) t += 86400000; r.at = t; r.fired = false; r.done = false; }
+  else r.done = true;
+  save();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-act]"); if (!t) { const tab = e.target.closest("[data-tab]"); if (tab) { ui.tab = tab.dataset.tab; ui.menu = null; ui.confirm = null; renderAll(); window.scrollTo(0, 0); } return; }
+  const act = t.dataset.act, id = t.dataset.id;
+  if (act === "scrim") { if (e.target === t) closeSheet(); return; }
+  if (act === "close") { closeSheet(); return; }
+  if (act === "new-task") taskSheet();
+  else if (act === "preset") taskSheet({ name: t.dataset.name, count: t.dataset.count });
+  else if (act === "log") logSheet(id);
+  else if (act === "quick") { const i = $("#ln"); if (i) { i.value = t.dataset.n; i.focus(); } }
+  else if (act === "menu") { ui.menu = ui.menu === id ? null : id; ui.confirm = null; renderView(); }
+  else if (act === "undo") { const p = state.projects.find(x => x.id === id); if (p && undoLast(p) !== null) { save(); renderView(); } }
+  else if (act === "del-task" || act === "del-rem" || act === "del-place") {
+    const key = (act === "del-task" ? "t" : act === "del-rem" ? "r" : "p") + id;
+    if (ui.confirm === key) {
+      if (act === "del-task") state.projects = state.projects.filter(x => x.id !== id);
+      else if (act === "del-rem") state.reminders = state.reminders.filter(x => x.id !== id);
+      else state.places = state.places.filter(x => x.id !== id);
+      ui.confirm = null; ui.menu = null; save();
+    } else { ui.confirm = key; setTimeout(() => { if (ui.confirm === key) { ui.confirm = null; renderView(); } }, 3000); }
+    renderView();
+  }
+  else if (act === "test-notif") testNotif();
+  else if (act === "new-rem") remSheet();
+  else if (act === "new-place") placeSheet();
+  else if (act === "rem-done") { completeReminder(id); renderView(); }
+  else if (act === "al-close") { alerts.splice(+t.dataset.i, 1); renderAlerts(); }
+  else if (act === "al-done") { const a = alerts[+t.dataset.i]; if (a) completeReminder(a.id); alerts.splice(+t.dataset.i, 1); renderAlerts(); renderView(); }
+  else if (act === "al-snooze") { const a = alerts[+t.dataset.i]; const r = a && state.reminders.find(x => x.id === a.id); if (r) { r.at = Date.now() + 600000; r.fired = false; save(); } alerts.splice(+t.dataset.i, 1); renderAlerts(); renderView(); }
+  else if (act === "al-log") { const a = alerts[+t.dataset.i]; alerts.splice(+t.dataset.i, 1); renderAlerts(); ui.tab = "tasks"; renderAll(); if (a) logSheet(a.id); }
+});
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  const f = e.target.id;
+  if (f === "f-task") {
+    const name = $("#tn").value.trim(), count = Math.floor(Number($("#tc").value));
+    if (!name) { $("#terr").textContent = "Enter a name, for example Pushups."; return; }
+    if (!(count >= 1)) { $("#terr").textContent = "Enter a count of 1 or more."; return; }
+    state.projects.unshift({ id: uid(), name: name, total: count, done: 0, log: [], recent: [], remindAt: $("#tr").value || "", lastNudge: "", created: Date.now() });
+    save(); closeSheet(); ui.tab = "tasks"; renderAll();
+  } else if (f === "f-log") {
+    const p = state.projects.find(x => x.id === (ui.sheet && ui.sheet.id)); if (!p) return;
+    const n = logProgress(p, $("#ln").value);
+    if (n === null) { $("#lerr").textContent = "Enter a number of 1 or more."; return; }
+    const others = state.projects.filter(x => x !== p);
+    const q = fillQuote(POOL[pickQuote(p, others)], p);
+    save(); renderView(); resultSheet(p, n, q);
+  } else if (f === "f-rem") {
+    const title = $("#rt").value.trim(), at = new Date($("#rw").value).getTime();
+    if (!title) { $("#rerr").textContent = "Enter what to remember."; return; }
+    if (!at) { $("#rerr").textContent = "Pick a date and time."; return; }
+    state.reminders.push({ id: uid(), title: title, at: at, repeat: $("#rp").value, done: false, fired: false });
+    save(); closeSheet(); renderView(); checkDue();
+  } else if (f === "f-place") {
+    const title = $("#pt").value.trim(), w = $("#pw").value;
+    if (!title) { $("#perr").textContent = "Enter a name for the place."; return; }
+    state.places.push({ id: uid(), title: title, place: $("#pa").value.trim(), at: w ? new Date(w).getTime() : null, note: $("#pn").value.trim() });
+    save(); closeSheet(); renderView();
+  }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#sheet-root").innerHTML) closeSheet(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { setToday(); checkDue(); } });
+
+setToday();
+renderAll();
+checkDue();
+setInterval(checkDue, 20000);
+syncNativeSoon();
+</script>
+</body>
+</html>
